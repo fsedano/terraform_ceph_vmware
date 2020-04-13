@@ -1,6 +1,5 @@
 
 provider "vsphere" {
-  vsphere_server = "192.168.20.202"
 
   # If you have a self-signed cert
   allow_unverified_ssl = true
@@ -251,7 +250,8 @@ resource "vsphere_virtual_machine" "admin" {
   
 provisioner "remote-exec" {
     scripts = [
-      "list_files.sh"
+      "create_users.sh",
+      "admin.sh"
     ]
   }
 provisioner "remote-exec" {
@@ -263,6 +263,9 @@ provisioner "remote-exec" {
       "echo \"${vsphere_virtual_machine.mon[0].default_ip_address}  mon01\" >> /etc/hosts",
       "echo \"${vsphere_virtual_machine.mon[1].default_ip_address}  mon02\" >> /etc/hosts",
       "echo \"${vsphere_virtual_machine.mon[2].default_ip_address}  mon03\" >> /etc/hosts",
+      "wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -",
+      "echo deb https://download.ceph.com/debian-nautilus/ $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/ceph.list",
+      "apt-get install -y ceph-deploy"
     ]
   }
 
@@ -283,6 +286,18 @@ provisioner "file" {
 provisioner "file" {
     content = file("ssh_config")
     destination = "/home/ceph-admin/.ssh/config"
+}
+
+provisioner "remote-exec" {
+    connection {
+        type = "ssh"
+        user = "ceph-admin"
+        private_key = file("~/.ssh/id_rsa")
+        host = self.default_ip_address
+  }
+    scripts = [
+        "install-ceph.sh"
+    ]
 }
 
 clone {
